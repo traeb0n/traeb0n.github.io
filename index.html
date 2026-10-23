@@ -77,7 +77,41 @@
         </style>
 
         <!-- Custom PostStyle code is injected here -->
-        
+        <style>
+            html, body {
+                background: #000;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+            #canvas {
+                position: fixed;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                width: min(100vw, calc(100vh * 4 / 3)) !important;
+                height: min(100vh, calc(100vw * 3 / 4)) !important;
+                image-rendering: pixelated;
+                image-rendering: crisp-edges;
+            }
+            #fs_button {
+                position: fixed;
+                right: 12px;
+                bottom: 12px;
+                z-index: 10;
+                padding: 6px 10px;
+                font: 14px sans-serif;
+                color: #fff;
+                background: rgba(255, 255, 255, 0.15);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 6px;
+                cursor: pointer;
+                opacity: 0.4;
+            }
+            #fs_button:hover { opacity: 1; }
+            :fullscreen #fs_button { display: none; }
+        </style>
+
 
         <!-- Builtin injector for injecting flurry analytics code -->
         
@@ -123,7 +157,25 @@
         
 
         <!-- Custom BodyEnd code is injected here -->
-        
+        <button id="fs_button" title="Fullscreen (F4)">&#x26F6; Fullscreen</button>
+        <script>
+            function toggleFullscreen() {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    document.documentElement.requestFullscreen();
+                }
+                document.getElementById("canvas").focus();
+            }
+            document.getElementById("fs_button").addEventListener("click", toggleFullscreen);
+            window.addEventListener("keydown", function (e) {
+                if (e.key === "F4") {
+                    e.preventDefault();
+                    toggleFullscreen();
+                }
+            }, true);
+        </script>
+
     </body>
 
     <!-- Custom PostBody code is injected here -->
