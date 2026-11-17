@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Playlists</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --card:#f1f1f4; --accent:#6c4cf5; --muted:#666; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121214; --fg:#f2f2f4; --card:#1e1e22; --muted:#999; } }
+  * { box-sizing:border-box; }
+  body { margin:auto; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); max-width:760px; padding:16px; }
+  h1 { font-size:1.4rem; margin:0 0 12px; }
+  h2 { font-size:1rem; margin:18px 0 8px; }
+  .row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
+  input, select, button, textarea { font:inherit; padding:10px; border-radius:8px; border:1px solid #8884; background:var(--card); color:var(--fg); }
+  input[type=text], input:not([type]), textarea { flex:1; min-width:150px; }
+  input[type=range] { padding:0; border:none; background:none; accent-color:var(--accent); }
+  textarea { width:100%; min-height:110px; }
+  button { cursor:pointer; background:var(--accent); color:#fff; border:none; }
+  button.ghost { background:var(--card); color:var(--fg); border:1px solid #8884; }
+  button.big { font-size:1.2rem; padding:8px 18px; }
+  #player { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; }
+  #player iframe { width:100%; height:100%; }
+  #now { font-weight:600; margin:10px 0 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #seek { flex:1; min-width:120px; }
+  .track { display:flex; align-items:center; gap:6px; padding:10px; background:var(--card); border-radius:8px; margin-bottom:6px; }
+  .track.playing { outline:2px solid var(--accent); }
+  .track.over { border-top:3px solid var(--accent); }
+  .track span { flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .track button { padding:4px 8px; }
+  .muted { color:var(--muted); font-size:.85rem; }
+  details { background:var(--card); border-radius:8px; padding:10px; margin-top:12px; }
+  summary { cursor:pointer; font-weight:600; }
+</style>
+</head>
+<body>
+<h1>🎵 My Playlists</h1>
+
+<div class="row">
+  <select id="plSelect"></select>
+  <button class="ghost" id="newPl">+ New</button>
+  <button class="ghost" id="delPl">Delete</button>
+</div>
+
+<div id="player"></div>
+<div id="now">Nothing playing</div>
+<div class="row">
+  <input type="range" id="seek" min="0" max="1" step="1" value="0">
+  <span class="muted" id="time">0:00 / 0:00</span>
+</div>
+<div class="row">
+  <button class="ghost big" id="prev" title="Previous (P)">⏮</button>
+  <button class="big" id="pp" title="Play/Pause (Space)">▶</button>
+  <button class="ghost big" id="next" title="Next (N)">⏭</button>
+  <button class="ghost" id="shuffle" title="S">Shuffle: off</button>
+  <button class="ghost" id="repeat" title="R">Repeat: off</button>
+  <span class="muted">🔊</span>
+  <input type="range" id="vol" min="0" max="100" value="80" style="width:90px">
+</div>
+
+<h2>Search</h2>
+<div class="row">
+  <input id="q" placeholder="Search songs or artists">
+  <button id="go">Search</button>
+</div>
+<div id="results"></div>
+
+<div class="row">
+  <input id="url" placeholder="...or paste a YouTube link">
+  <button class="ghost" id="add">Add</button>
+</div>
+<p class="muted" id="msg"></p>
+
+<h2>Playlist</h2>
+<div id="list"></div>
+
+<details>
+  <summary>Import / Export / Settings</summary>
+  <h2>Import a list</h2>
+  <p class="muted">Paste one song per line (like "Artist - Song"), or a CSV from Apple Music / Spotify exports. Each song is looked up on YouTube.</p>
+  <textarea id="paste" placeholder="Daft Punk - Get Lucky&#10;Tame Impala - The Less I Know The Better"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="doImport">Import pasted list</button>
+    <button class="ghost" id="fileBtn">Import file (.csv .txt .json)</button>
+    <input type="file" id="file" accept=".csv,.txt,.json,.tsv" hidden>
+  </div>
+  <h2>Export</h2>
+  <div class="row"><button class="ghost" id="export">Download all playlists (.json)</button></div>
+  <h2>YouTube API key</h2>
+  <p class="muted" id="keyStatus"></p>
+  <div class="row"><button class="ghost" id="setKey">Set / change API key</button></div>
+  <h2>Keyboard shortcuts</h2>
+  <p class="muted">Space play/pause · N next · P previous · S shuffle · R repeat · M mute · ← → seek 5 seconds</p>
+</details>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const SHARED_KEY = ""; // optional: paste a key here so everyone who visits can search
+
+let data = { current: "Favorites", lists: { "Favorites": [] } };
+try { const s = JSON.parse(localStorage.getItem("playlists")); if (s && s.lists) data = s; } catch (e) {}
+let saved = {}; try { saved = JSON.parse(localStorage.getItem("pstate")) || {}; } catch (e) {}
+if (saved.list && data.lists[saved.list]) data.current = saved.list;
+
+let yt, ready = false, shuffle = !!saved.shuffle, repeat = saved.repeat || "off", vol = saved.vol ?? 80;
+let pName = data.current, idx = -1, seeking = false, errs = 0, tick = 0;
+if (Number.isInteger(saved.idx) && data.lists[pName][saved.idx]) idx = saved.idx;
+
+const $ = id => document.getElementById(id);
+const seek = $("seek");
+const save = () => { try { localStorage.setItem("playlists", JSON.stringify(data)); } catch (e) {} };
+const cur = () => data.lists[data.current];
+const pList = () => data.lists[pName] || [];
+const dec = s => new DOMParser().parseFromString(s, "text/html").documentElement.textContent;
+const getKey = () => { try { return localStorage.getItem("ytkey") || SHARED_KEY; } catch (e) { return SHARED_KEY; } };
+const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+const saveState = () => {
+  try {
+    localStorage.setItem("pstate", JSON.stringify({ list: pName, idx, t: ready && idx > -1 ? yt.getCurrentTime() : (saved.t || 0), shuffle, repeat, vol }));
+  } catch (e) {}
+};
+
+function parseId(s) {
+  s = s.trim();
+  const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
+  if (m) return m[1];
+  return /^[\w-]{11}$/.test(s) ? s : null;
+}
+
+async function getTitle(id) {
+  try {
+    const r = await fetch("https://noembed.com/embed?url=https://www.youtube.com/watch?v=" + id);
+    const j = await r.json();
+    return j.title || id;
+  } catch (e) { return id; }
+}
+
+async function ytSearch(q, n) {
+  const key = getKey();
+  if (!key) throw new Error("Add a YouTube API key first (Import / Export / Settings)");
+  const u = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=" + n +
+    "&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
+  const r = await fetch(u), j = await r.json();
+  if (!r.ok) throw new Error((j.error && j.error.message) || "Error " + r.status);
+  return (j.items || []).map(i => ({ id: i.id.videoId, title: dec(i.snippet.title), channel: dec(i.snippet.channelTitle) }));
+}
+
+/* ---------- list rendering ---------- */
+function move(from, to) {
+  const l = cur(); if (to < 0 || to >= l.length || from === to) return;
+  const playing = pName === data.current && idx > -1 ? l[idx] : null;
+  const [t] = l.splice(from, 1); l.splice(to, 0, t);
+  if (playing) idx = l.indexOf(playing);
+  save(); render();
+}
+
+function render() {
+  $("plSelect").innerHTML = Object.keys(data.lists).map(n =>
+    `<option ${n === data.current ? "selected" : ""}>${n.replace(/</g, "&lt;")}</option>`).join("");
+  const l = $("list"); l.innerHTML = "";
+  cur().forEach((t, i) => {
+    const d = document.createElement("div");
+    d.className = "track" + (pName === data.current && i === idx ? " playing" : "");
+    d.draggable = true;
+    d.ondragstart = e => e.dataTransfer.setData("text/plain", i);
+    d.ondragover = e => { e.preventDefault(); d.classList.add("over"); };
+    d.ondragleave = () => d.classList.remove("over");
+    d.ondrop = e => { e.preventDefault(); move(+e.dataTransfer.getData("text/plain"), i); };
+    const s = document.createElement("span"); s.textContent = t.title;
+    s.onclick = () => { pName = data.current; play(i); };
+    const mk = (txt, f) => { const b = document.createElement("button"); b.className = "ghost"; b.textContent = txt; b.onclick = f; return b; };
+    d.append(s, mk("▲", () => move(i, i - 1)), mk("▼", () => move(i, i + 1)), mk("✕", () => {
+      if (pName === data.current) { if (i === idx) idx = i - 1; else if (i < idx) idx--; }
+      cur().splice(i, 1); save(); render();
+    }));
+    l.append(d);
+  });
+  if (!cur().length) l.innerHTML = '<p class="muted">Empty playlist. Search for a song above.</p>';
+  const np = pList()[idx];
+  $("now").textContent = idx > -1 && np ? np.title : "Nothing playing";
+  $("keyStatus").textContent = getKey() ? "A key is available for search." : "No key saved. Search and import need one.";
+}
+
+/* ---------- playback ---------- */
+function setMeta(t) {
+  try { navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: "My Playlists" }); } catch (e) {}
+}
+
+function play(i) {
+  const l = pList(); if (!l.length || !ready) return;
+  idx = (i + l.length) % l.length;
+  yt.loadVideoById(l[idx].id);
+  setMeta(l[idx]); render(); saveState();
+}
+
+function nextTrack(auto) {
+  const n = pList().length; if (!n) return;
+  if (auto === true && repeat === "one") { play(idx); return; }
+  if (shuffle && n > 1) { let r; do { r = Math.floor(Math.random() * n); } while (r === idx); play(r); return; }
+  if (auto === true && idx >= n - 1 && repeat === "off") return;
+  play(idx + 1);
+}
+
+function prevTrack() {
+  if (idx < 0) { pName = data.current; play(0); return; }
+  if (ready && yt.getCurrentTime() > 3) { yt.seekTo(0, true); return; }
+  play(idx - 1);
+}
+
+function toggle() {
+  if (!ready) return;
+  if (idx === -1) { pName = data.current; play(0); return; }
+  yt.getPlayerState() === 1 ? yt.pauseVideo() : yt.playVideo();
+}
+
+function addTrack(t) {
+  cur().push({ id: t.id, title: t.title });
+  save();
+  if (idx === -1) { pName = data.current; render(); play(0); } else render();
+}
+
+function onYouTubeIframeAPIReady() {
+  yt = new YT.Player("player", {
+    playerVars: { playsinline: 1 },
+    events: {
+      onReady: () => {
+        ready = true; yt.setVolume(vol);
+        const t = pList()[idx];
+        if (t) { yt.cueVideoById({ videoId: t.id, startSeconds: saved.t || 0 }); setMeta(t); }
+        setupMedia();
+      },
+      onStateChange: e => {
+        $("pp").textContent = e.data === 1 ? "⏸" : "▶";
+        try { navigator.mediaSession.playbackState = e.data === 1 ? "playing" : "paused"; } catch (x) {}
+        if (e.data === 1) errs = 0;
+        if (e.data === 0) nextTrack(true);
+      },
+      onError: () => {
+        errs++;
+        if (errs < pList().length) { $("msg").textContent = "That video can't be played. Skipping..."; nextTrack(true); }
+        else $("msg").textContent = "None of these videos can be played here.";
+      }
+    }
+  });
+}
+
+function setupMedia() {
+  if (!("mediaSession" in navigator)) return;
+  const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) {} };
+  h("play", () => yt.playVideo()); h("pause", () => yt.pauseVideo());
+  h("previoustrack", prevTrack); h("nexttrack", () => nextTrack());
+}
+
+setInterval(() => {
+  if (!ready) return;
+  let d = 0, c = 0;
+  try { d = yt.getDuration() || 0; c = yt.getCurrentTime() || 0; } catch (e) { return; }
+  if (!seeking) { seek.max = Math.max(1, Math.floor(d)); seek.value = c; $("time").textContent = fmt(c) + " / " + fmt(d); }
+  if (++tick % 4 === 0) saveState();
+}, 500);
+
+seek.oninput = () => { seeking = true; $("time").textContent = fmt(seek.value) + " / " + fmt(seek.max); };
+seek.onchange = () => { seeking = false; if (ready) yt.seekTo(+seek.value, true); seek.blur(); };
+$("vol").value = vol;
+$("vol").oninput = e => { vol = +e.target.value; if (ready) yt.setVolume(vol); };
+$("vol").onchange = e => { e.target.blur(); saveState(); };
+
+$("pp").onclick = toggle;
+$("prev").onclick = prevTrack;
+$("next").onclick = () => nextTrack();
+$("shuffle").onclick = () => { shuffle = !shuffle; $("shuffle").textContent = "Shuffle: " + (shuffle ? "on" : "off"); saveState(); };
+$("repeat").onclick = () => { repeat = { off: "all", all: "one", one: "off" }[repeat]; $("repeat").textContent = "Repeat: " + repeat; saveState(); };
+$("shuffle").textContent = "Shuffle: " + (shuffle ? "on" : "off");
+$("repeat").textContent = "Repeat: " + repeat;
+
+document.addEventListener("keydown", e => {
+  const t = e.target.tagName;
+  if (/INPUT|TEXTAREA|SELECT/.test(t) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t === "BUTTON" && e.key === " ") return;
+  const k = e.key.toLowerCase();
+  if (k === " ") { e.preventDefault(); toggle(); }
+  else if (k === "n") nextTrack();
+  else if (k === "p") prevTrack();
+  else if (k === "s") $("shuffle").click();
+  else if (k === "r") $("repeat").click();
+  else if (k === "m" && ready) yt.isMuted() ? yt.unMute() : yt.mute();
+  else if (e.key === "ArrowRight" && ready) yt.seekTo(yt.getCurrentTime() + 5, true);
+  else if (e.key === "ArrowLeft" && ready) yt.seekTo(Math.max(0, yt.getCurrentTime() - 5), true);
+});
+
+/* ---------- search ---------- */
+async function doSearch() {
+  const q = $("q").value.trim(); if (!q) return;
+  $("msg").textContent = "Searching...";
+  const box = $("results"); box.innerHTML = "";
+  try {
+    const res = await ytSearch(q, 8);
+    $("msg").textContent = res.length ? "" : "No results.";
+    res.forEach(t => {
+      const d = document.createElement("div"); d.className = "track";
+      const s = document.createElement("span"); s.textContent = t.title + " · " + t.channel;
+      const b = document.createElement("button"); b.textContent = "+ Add";
+      b.onclick = () => { addTrack(t); b.textContent = "Added"; b.disabled = true; };
+      d.append(s, b); box.append(d);
+    });
+  } catch (e) { $("msg").textContent = e.message; }
+}
+$("go").onclick = doSearch;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+
+$("add").onclick = async () => {
+  const id = parseId($("url").value);
+  if (!id) { $("msg").textContent = "Couldn't read that link."; return; }
+  $("msg").textContent = "Adding...";
+  addTrack({ id, title: await getTitle(id) });
+  $("url").value = ""; $("msg").textContent = "";
+};
+$("url").addEventListener("keydown", e => { if (e.key === "Enter") $("add").click(); });
+
+/* ---------- import / export ---------- */
+function rowsOf(t, d) {
+  const rows = []; let r = [], f = "", q = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === d) { r.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && t[i + 1] === "\n") i++; r.push(f); rows.push(r); r = []; f = ""; }
+    else f += c;
+  }
+  if (f || r.length) { r.push(f); rows.push(r); }
+  return rows;
+}
+
+function toQueries(t) {
+  t = t.trim();
+  const first = t.split(/\r?\n/)[0].toLowerCase();
+  const d = first.includes("\t") ? "\t" : first.includes(",") ? "," : null;
+  if (d && /track|title|song|name/.test(first)) {
+    const rows = rowsOf(t, d), h = rows[0].map(x => x.toLowerCase());
+    const ti = h.findIndex(x => /track name|title|song|^name$/.test(x));
+    const ai = h.findIndex(x => /artist/.test(x));
+    if (ti > -1) return rows.slice(1).filter(r => r[ti])
+      .map(r => (r[ti] + " " + (ai > -1 ? (r[ai] || "").split(/[;,]/)[0] : "")).trim());
+  }
+  return t.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+}
+
+async function runImport(text) {
+  text = (text || "").trim(); if (!text) return;
+  let j = null; try { j = JSON.parse(text); } catch (e) {}
+  if (j && j.lists) {
+    for (const n in j.lists) {
+      const t = data.lists[n] = data.lists[n] || [];
+      (j.lists[n] || []).forEach(x => { if (x && x.id && !t.some(y => y.id === x.id)) t.push({ id: x.id, title: x.title || x.id }); });
+    }
+    save(); render(); $("msg").textContent = "Playlists imported."; return;
+  }
+  const qs = toQueries(text); if (!qs.length) return;
+  const name = (prompt("Name for the new playlist?", "Imported") || "").trim(); if (!name) return;
+  data.lists[name] = data.lists[name] || []; data.current = name;
+  let ok = 0, miss = 0, err = "";
+  for (let i = 0; i < qs.length; i++) {
+    $("msg").textContent = "Importing " + (i + 1) + "/" + qs.length + "...";
+    try {
+      const r = await ytSearch(qs[i], 1);
+      if (r[0]) { data.lists[name].push({ id: r[0].id, title: r[0].title }); ok++; } else miss++;
+    } catch (e) { err = e.message; break; }
+  }
+  save(); render();
+  $("msg").textContent = "Added " + ok + (miss ? ", " + miss + " not found" : "") + (err ? ". Stopped: " + err : ".");
+}
+
+$("doImport").onclick = () => runImport($("paste").value);
+$("fileBtn").onclick = () => $("file").click();
+$("file").onchange = async e => { const f = e.target.files[0]; if (f) runImport(await f.text()); e.target.value = ""; };
+$("export").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = "playlists.json"; a.click();
+};
+$("setKey").onclick = () => {
+  const k = prompt("Paste your YouTube Data API key:", getKey());
+  if (k !== null) { try { localStorage.setItem("ytkey", k.trim()); } catch (e) {} render(); }
+};
+
+/* ---------- playlists ---------- */
+$("plSelect").onchange = e => { data.current = e.target.value; save(); render(); };
+$("newPl").onclick = () => {
+  const n = (prompt("Playlist name?") || "").trim();
+  if (n && !data.lists[n]) { data.lists[n] = []; data.current = n; save(); render(); }
+};
+$("delPl").onclick = () => {
+  if (Object.keys(data.lists).length < 2) return;
+  if (!confirm("Delete this playlist?")) return;
+  if (data.current === pName) { idx = -1; if (ready) yt.stopVideo(); }
+  delete data.lists[data.current]; data.current = Object.keys(data.lists)[0];
+  if (!data.lists[pName]) pName = data.current;
+  save(); render();
+};
+render();
+</script>
+</body>
+</html>
