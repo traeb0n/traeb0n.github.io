@@ -5,93 +5,146 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Playlists</title>
 <style>
-  :root { --bg:#fff; --fg:#111; --card:#f1f1f4; --accent:#6c4cf5; --muted:#666; }
+  :root { --bg:#fff; --fg:#111; --card:#f1f1f4; --accent:#6c4cf5; --muted:#666; --line:#8884; }
   @media (prefers-color-scheme: dark) { :root { --bg:#121214; --fg:#f2f2f4; --card:#1e1e22; --muted:#999; } }
   * { box-sizing:border-box; }
-  body { margin:auto; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); max-width:760px; padding:16px; }
-  h1 { font-size:1.4rem; margin:0 0 12px; }
-  h2 { font-size:1rem; margin:18px 0 8px; }
+  body { margin:0 auto; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); max-width:1100px; padding:16px; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  h1 { font-size:1.4rem; margin:0; }
+  h2 { font-size:1.05rem; margin:0; }
+  h3 { margin:0 0 10px; }
+  main { display:grid; gap:16px; }
+  @media (min-width:860px) { main { grid-template-columns:360px 1fr; align-items:start; } #left { position:sticky; top:12px; } }
+  .card { background:var(--card); border-radius:14px; padding:12px; }
   .row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
-  input, select, button, textarea { font:inherit; padding:10px; border-radius:8px; border:1px solid #8884; background:var(--card); color:var(--fg); }
-  input[type=text], input:not([type]), textarea { flex:1; min-width:150px; }
+  .row.ctr { justify-content:center; }
+  input, button, textarea { font:inherit; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
+  input[type=text], input:not([type]), textarea { flex:1; min-width:140px; }
   input[type=range] { padding:0; border:none; background:none; accent-color:var(--accent); }
-  textarea { width:100%; min-height:110px; }
+  textarea { width:100%; min-height:100px; }
   button { cursor:pointer; background:var(--accent); color:#fff; border:none; }
-  button.ghost { background:var(--card); color:var(--fg); border:1px solid #8884; }
-  button.big { font-size:1.2rem; padding:8px 18px; }
-  #player { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; }
-  #player iframe { width:100%; height:100%; }
-  #now { font-weight:600; margin:10px 0 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  button:hover { filter:brightness(1.1); }
+  button.ghost { background:var(--card); color:var(--fg); border:1px solid var(--line); }
+  button.big { font-size:1.3rem; padding:8px 20px; }
+  button.link { background:none; color:var(--accent); padding:4px 6px; }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  #vwrap { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; margin-bottom:10px; }
+  #vwrap.hide { height:0; aspect-ratio:auto; margin:0; }
+  #vwrap iframe { width:100%; height:100%; }
+  #now { font-weight:700; font-size:1.05rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #seek { flex:1; min-width:120px; }
-  .track { display:flex; align-items:center; gap:6px; padding:10px; background:var(--card); border-radius:8px; margin-bottom:6px; }
+  .chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin:14px 0 10px; }
+  .chip { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:99px; padding:6px 14px; white-space:nowrap; }
+  .chip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .plhead { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .track { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--card); border-radius:10px; margin-bottom:6px; }
   .track.playing { outline:2px solid var(--accent); }
   .track.over { border-top:3px solid var(--accent); }
+  .track.bad span { opacity:.6; }
+  .track .num { width:1.6em; text-align:center; color:var(--muted); font-weight:400; }
   .track span { flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .track button { padding:4px 8px; }
-  .muted { color:var(--muted); font-size:.85rem; }
-  details { background:var(--card); border-radius:8px; padding:10px; margin-top:12px; }
-  summary { cursor:pointer; font-weight:600; }
+  .muted, .empty { color:var(--muted); font-size:.9rem; }
+  .empty { text-align:center; padding:24px 8px; }
+  .banner { background:var(--card); border-left:4px solid var(--accent); border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+  .banner[hidden] { display:none; }
+  dialog { border:none; border-radius:14px; background:var(--bg); color:var(--fg); width:min(520px,92vw); padding:18px; }
+  dialog::backdrop { background:#0007; }
+  dialog .row.end { justify-content:flex-end; flex-direction:row-reverse; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#222; color:#fff; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; z-index:9; }
+  #toast.show { opacity:1; }
 </style>
 </head>
 <body>
-<h1>🎵 My Playlists</h1>
+<header>
+  <h1>🎵 My Playlists</h1>
+  <button class="ghost" id="setBtn">⚙ Settings &amp; import</button>
+</header>
 
-<div class="row">
-  <select id="plSelect"></select>
-  <button class="ghost" id="newPl">+ New</button>
-  <button class="ghost" id="delPl">Delete</button>
+<div class="banner" id="keyBanner" hidden>
+  🔑 <b>Search needs a free YouTube key.</b> Until you add one, you can still paste YouTube links into the search box.
+  <button class="link" id="keyBtn">Add key</button>
 </div>
 
-<div id="player"></div>
-<div id="now">Nothing playing</div>
-<div class="row">
-  <input type="range" id="seek" min="0" max="1" step="1" value="0">
-  <span class="muted" id="time">0:00 / 0:00</span>
-</div>
-<div class="row">
-  <button class="ghost big" id="prev" title="Previous (P)">⏮</button>
-  <button class="big" id="pp" title="Play/Pause (Space)">▶</button>
-  <button class="ghost big" id="next" title="Next (N)">⏭</button>
-  <button class="ghost" id="shuffle" title="S">Shuffle: off</button>
-  <button class="ghost" id="repeat" title="R">Repeat: off</button>
-  <span class="muted">🔊</span>
-  <input type="range" id="vol" min="0" max="100" value="80" style="width:90px">
-</div>
+<main>
+  <section class="card" id="left">
+    <div id="vwrap"><div id="player"></div></div>
+    <div id="now">Nothing playing</div>
+    <div class="muted" id="nowSub">Pick a song to start</div>
+    <div class="row" style="margin-top:8px">
+      <input type="range" id="seek" min="0" max="1" step="1" value="0" aria-label="Seek">
+      <span class="muted" id="time">0:00 / 0:00</span>
+    </div>
+    <div class="row ctr">
+      <button class="ghost big" id="prev" title="Previous (P)" aria-label="Previous">⏮</button>
+      <button class="big" id="pp" title="Play / pause (Space)" aria-label="Play or pause">▶</button>
+      <button class="ghost big" id="next" title="Next (N)" aria-label="Next">⏭</button>
+    </div>
+    <div class="row">
+      <button class="ghost" id="shuffle" title="Shuffle (S)">Shuffle: off</button>
+      <button class="ghost" id="repeat" title="Repeat (R)">Repeat: off</button>
+      <button class="ghost" id="hideBtn">Hide video</button>
+    </div>
+    <div class="row"><span>🔊</span><input type="range" id="vol" min="0" max="100" value="80" style="flex:1" aria-label="Volume"></div>
+  </section>
 
-<h2>Search</h2>
-<div class="row">
-  <input id="q" placeholder="Search songs or artists">
-  <button id="go">Search</button>
-</div>
-<div id="results"></div>
+  <section id="right">
+    <div class="row">
+      <input id="q" placeholder="🔍 Search a song or artist, or paste a YouTube link">
+      <button id="go">Search</button>
+    </div>
+    <div id="results"></div>
 
-<div class="row">
-  <input id="url" placeholder="...or paste a YouTube link">
-  <button class="ghost" id="add">Add</button>
-</div>
-<p class="muted" id="msg"></p>
+    <div class="chips" id="chips"></div>
+    <div class="plhead">
+      <h2 id="plTitle"></h2>
+      <div>
+        <button class="link" id="impBtn">Import songs</button>
+        <button class="link" id="renBtn">Rename</button>
+        <button class="link" id="delBtn">Delete</button>
+      </div>
+    </div>
+    <div id="list"></div>
+  </section>
+</main>
 
-<h2>Playlist</h2>
-<div id="list"></div>
+<dialog id="ask">
+  <form method="dialog">
+    <h3 id="askT"></h3>
+    <input id="askI" style="width:100%;margin-bottom:12px">
+    <div class="row end"><button id="askOk" value="ok">OK</button><button class="ghost" value="cancel">Cancel</button></div>
+  </form>
+</dialog>
 
-<details>
-  <summary>Import / Export / Settings</summary>
-  <h2>Import a list</h2>
-  <p class="muted">Paste one song per line (like "Artist - Song"), or a CSV from Apple Music / Spotify exports. Each song is looked up on YouTube.</p>
+<dialog id="set">
+  <h3>Settings &amp; import</h3>
+  <h2>Import songs</h2>
+  <p class="muted">Paste one song per line (like “Artist - Song”) or a CSV exported from Apple Music / Spotify. Each song is matched to a YouTube video. Needs a key.</p>
   <textarea id="paste" placeholder="Daft Punk - Get Lucky&#10;Tame Impala - The Less I Know The Better"></textarea>
   <div class="row" style="margin-top:8px">
     <button id="doImport">Import pasted list</button>
-    <button class="ghost" id="fileBtn">Import file (.csv .txt .json)</button>
+    <button class="ghost" id="fileBtn">Choose file (.csv .txt .json)</button>
     <input type="file" id="file" accept=".csv,.txt,.json,.tsv" hidden>
   </div>
-  <h2>Export</h2>
-  <div class="row"><button class="ghost" id="export">Download all playlists (.json)</button></div>
-  <h2>YouTube API key</h2>
+  <h2>Backup</h2>
+  <div class="row" style="margin-top:8px"><button class="ghost" id="export">Download all playlists (.json)</button></div>
+  <h2>YouTube key</h2>
   <p class="muted" id="keyStatus"></p>
-  <div class="row"><button class="ghost" id="setKey">Set / change API key</button></div>
-  <h2>Keyboard shortcuts</h2>
+  <div class="row"><button class="ghost" id="setKey">Set / change key</button></div>
+  <details><summary>How do I get a key?</summary>
+    <ol class="muted">
+      <li>Go to console.cloud.google.com and make a project.</li>
+      <li>Enable “YouTube Data API v3”.</li>
+      <li>Credentials → Create credentials → API key.</li>
+      <li>Restrict it to your site address and to that API only.</li>
+    </ol>
+  </details>
+  <h2 style="margin-top:12px">Keyboard shortcuts</h2>
   <p class="muted">Space play/pause · N next · P previous · S shuffle · R repeat · M mute · ← → seek 5 seconds</p>
-</details>
+  <div class="row end"><form method="dialog"><button class="ghost">Close</button></form></div>
+</dialog>
+
+<div id="toast"></div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
@@ -102,11 +155,12 @@ try { const s = JSON.parse(localStorage.getItem("playlists")); if (s && s.lists)
 let saved = {}; try { saved = JSON.parse(localStorage.getItem("pstate")) || {}; } catch (e) {}
 if (saved.list && data.lists[saved.list]) data.current = saved.list;
 
-let yt, ready = false, shuffle = !!saved.shuffle, repeat = saved.repeat || "off", vol = saved.vol ?? 80;
-let pName = data.current, idx = -1, seeking = false, errs = 0, tick = 0;
+let yt, ready = false, shuffle = !!saved.shuffle, repeat = saved.repeat || "off", vol = saved.vol ?? 80, hideV = !!saved.hideV;
+let pName = data.current, idx = -1, seeking = false, errs = 0, tick = 0, tt;
 if (Number.isInteger(saved.idx) && data.lists[pName][saved.idx]) idx = saved.idx;
 
 const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const seek = $("seek");
 const save = () => { try { localStorage.setItem("playlists", JSON.stringify(data)); } catch (e) {} };
 const cur = () => data.lists[data.current];
@@ -114,38 +168,79 @@ const pList = () => data.lists[pName] || [];
 const dec = s => new DOMParser().parseFromString(s, "text/html").documentElement.textContent;
 const getKey = () => { try { return localStorage.getItem("ytkey") || SHARED_KEY; } catch (e) { return SHARED_KEY; } };
 const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-const saveState = () => {
-  try {
-    localStorage.setItem("pstate", JSON.stringify({ list: pName, idx, t: ready && idx > -1 ? yt.getCurrentTime() : (saved.t || 0), shuffle, repeat, vol }));
-  } catch (e) {}
-};
+const saveState = () => { try { localStorage.setItem("pstate", JSON.stringify({ list: pName, idx, t: ready && idx > -1 ? yt.getCurrentTime() : (saved.t || 0), shuffle, repeat, vol, hideV })); } catch (e) {} };
+
+function toast(m, sticky) {
+  const e = $("toast"); clearTimeout(tt);
+  if (!m) { e.classList.remove("show"); return; }
+  e.textContent = m; e.classList.add("show");
+  if (!sticky) tt = setTimeout(() => e.classList.remove("show"), 3500);
+}
+
+function ask(title, def, o = {}) {
+  return new Promise(res => {
+    const d = $("ask"), i = $("askI"), input = o.input !== false;
+    $("askT").textContent = title; i.style.display = input ? "" : "none"; i.value = def || "";
+    $("askOk").textContent = o.ok || "OK"; d.returnValue = "";
+    d.onclose = () => res(d.returnValue === "ok" ? (input ? i.value.trim() : true) : null);
+    d.showModal(); if (input) i.select();
+  });
+}
 
 function parseId(s) {
-  s = s.trim();
-  const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
-  if (m) return m[1];
-  return /^[\w-]{11}$/.test(s) ? s : null;
+  const m = s.trim().match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
+  return m ? m[1] : null;
 }
 
 async function getTitle(id) {
-  try {
-    const r = await fetch("https://noembed.com/embed?url=https://www.youtube.com/watch?v=" + id);
-    const j = await r.json();
-    return j.title || id;
-  } catch (e) { return id; }
+  try { const r = await fetch("https://noembed.com/embed?url=https://www.youtube.com/watch?v=" + id); return (await r.json()).title || id; }
+  catch (e) { return id; }
 }
 
 async function ytSearch(q, n) {
   const key = getKey();
-  if (!key) throw new Error("Add a YouTube API key first (Import / Export / Settings)");
-  const u = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=" + n +
-    "&q=" + encodeURIComponent(q) + "&key=" + encodeURIComponent(key);
-  const r = await fetch(u), j = await r.json();
+  if (!key) throw new Error("Add a YouTube key first (⚙ Settings)");
+  const k = encodeURIComponent(key);
+  const r = await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=" +
+    Math.min(25, n * 2) + "&q=" + encodeURIComponent(q) + "&key=" + k);
+  const j = await r.json();
   if (!r.ok) throw new Error((j.error && j.error.message) || "Error " + r.status);
-  return (j.items || []).map(i => ({ id: i.id.videoId, title: dec(i.snippet.title), channel: dec(i.snippet.channelTitle) }));
+  const items = (j.items || []).map(i => ({ id: i.id.videoId, title: dec(i.snippet.title), channel: dec(i.snippet.channelTitle) }));
+  if (!items.length) return [];
+  // Second check (costs 1 quota unit): keep only public, embeddable videos that aren't age- or region-blocked
+  try {
+    const cc = ((navigator.language || "").split("-")[1] || "").toUpperCase();
+    const v = await (await fetch("https://www.googleapis.com/youtube/v3/videos?part=status,contentDetails&id=" +
+      items.map(i => i.id).join(",") + "&key=" + k)).json();
+    if (!v.items) return items.slice(0, n);
+    const good = new Set(v.items.filter(x => {
+      const s = x.status || {}, c = x.contentDetails || {}, rr = c.regionRestriction || {};
+      if (!s.embeddable || s.privacyStatus !== "public") return false;
+      if (c.contentRating && c.contentRating.ytRating === "ytAgeRestricted") return false;
+      if (cc && rr.blocked && rr.blocked.includes(cc)) return false;
+      if (cc && rr.allowed && !rr.allowed.includes(cc)) return false;
+      return true;
+    }).map(x => x.id));
+    return items.filter(i => good.has(i.id)).slice(0, n);
+  } catch (e) { return items.slice(0, n); }
+}
+const best = res => res.find(r => / - topic$/i.test(r.channel)) || res[0];
+
+/* Look for another upload of the same song when one can't be played here */
+async function findAlt(l, i) {
+  const t = l[i]; if (!t) return false;
+  try {
+    const res = await ytSearch(t.title.replace(/\(.*?\)|\[.*?\]/g, "") + " audio", 6);
+    const tried = t.tried || [t.id];
+    const ok = res.filter(r => !tried.includes(r.id));
+    const pick = best(ok);
+    if (!pick) { toast("No other version found."); return false; }
+    l[i] = { id: pick.id, title: t.title, tried: [...tried, pick.id] };
+    save(); render(); return true;
+  } catch (e) { toast(e.message); return false; }
 }
 
-/* ---------- list rendering ---------- */
+/* ---------- list ---------- */
 function move(from, to) {
   const l = cur(); if (to < 0 || to >= l.length || from === to) return;
   const playing = pName === data.current && idx > -1 ? l[idx] : null;
@@ -155,36 +250,49 @@ function move(from, to) {
 }
 
 function render() {
-  $("plSelect").innerHTML = Object.keys(data.lists).map(n =>
-    `<option ${n === data.current ? "selected" : ""}>${n.replace(/</g, "&lt;")}</option>`).join("");
-  const l = $("list"); l.innerHTML = "";
-  cur().forEach((t, i) => {
-    const d = document.createElement("div");
-    d.className = "track" + (pName === data.current && i === idx ? " playing" : "");
+  const chips = $("chips"); chips.innerHTML = "";
+  Object.keys(data.lists).forEach(n => {
+    const b = el("button", "chip" + (n === data.current ? " on" : ""), n);
+    b.onclick = () => { data.current = n; save(); render(); };
+    chips.append(b);
+  });
+  const nb = el("button", "chip", "＋ New list"); nb.onclick = newList; chips.append(nb);
+
+  const l = cur();
+  $("plTitle").textContent = data.current + " · " + l.length + (l.length === 1 ? " song" : " songs");
+  const box = $("list"); box.innerHTML = "";
+  l.forEach((t, i) => {
+    const playing = pName === data.current && i === idx;
+    const d = el("div", "track" + (playing ? " playing" : "") + (t.bad ? " bad" : ""));
     d.draggable = true;
     d.ondragstart = e => e.dataTransfer.setData("text/plain", i);
     d.ondragover = e => { e.preventDefault(); d.classList.add("over"); };
     d.ondragleave = () => d.classList.remove("over");
     d.ondrop = e => { e.preventDefault(); move(+e.dataTransfer.getData("text/plain"), i); };
-    const s = document.createElement("span"); s.textContent = t.title;
+    const s = el("span", "", t.title + (t.bad ? "  ⚠ can't play here" : ""));
     s.onclick = () => { pName = data.current; play(i); };
-    const mk = (txt, f) => { const b = document.createElement("button"); b.className = "ghost"; b.textContent = txt; b.onclick = f; return b; };
-    d.append(s, mk("▲", () => move(i, i - 1)), mk("▼", () => move(i, i + 1)), mk("✕", () => {
-      if (pName === data.current) { if (i === idx) idx = i - 1; else if (i < idx) idx--; }
-      cur().splice(i, 1); save(); render();
-    }));
-    l.append(d);
+    const mk = (txt, tip, f) => { const b = el("button", "ghost", txt); b.title = tip; b.setAttribute("aria-label", tip); b.onclick = f; return b; };
+    d.append(el("b", "num", playing ? "▶" : i + 1), s,
+      mk("↻", "Find another version of this song", async () => { toast("Looking for another version...", true); if (await findAlt(l, i)) toast("Swapped in another version."); }),
+      mk("▲", "Move up", () => move(i, i - 1)), mk("▼", "Move down", () => move(i, i + 1)),
+      mk("✕", "Remove", () => {
+        if (pName === data.current) { if (i === idx) idx = i - 1; else if (i < idx) idx--; }
+        l.splice(i, 1); save(); render();
+      }));
+    box.append(d);
   });
-  if (!cur().length) l.innerHTML = '<p class="muted">Empty playlist. Search for a song above.</p>';
+  if (!l.length) box.append(el("p", "empty", "This playlist is empty. Search for a song above, or paste a YouTube link."));
   const np = pList()[idx];
   $("now").textContent = idx > -1 && np ? np.title : "Nothing playing";
-  $("keyStatus").textContent = getKey() ? "A key is available for search." : "No key saved. Search and import need one.";
+  $("nowSub").textContent = idx > -1 && np ? "From “" + pName + "”" : "Pick a song to start";
+  $("keyBanner").hidden = !!getKey();
+  $("keyStatus").textContent = getKey() ? "A key is set." : "No key yet. Search and import need one.";
+  $("vwrap").classList.toggle("hide", hideV);
+  $("hideBtn").textContent = hideV ? "Show video" : "Hide video";
 }
 
 /* ---------- playback ---------- */
-function setMeta(t) {
-  try { navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: "My Playlists" }); } catch (e) {}
-}
+function setMeta(t) { try { navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: "My Playlists" }); } catch (e) {} }
 
 function play(i) {
   const l = pList(); if (!l.length || !ready) return;
@@ -213,10 +321,11 @@ function toggle() {
   yt.getPlayerState() === 1 ? yt.pauseVideo() : yt.playVideo();
 }
 
-function addTrack(t) {
-  cur().push({ id: t.id, title: t.title });
-  save();
-  if (idx === -1) { pName = data.current; render(); play(0); } else render();
+function addTrack(t, playNow) {
+  const wasEmpty = !cur().length;
+  cur().push({ id: t.id, title: t.title }); save();
+  if (playNow || (wasEmpty && idx === -1)) { pName = data.current; play(cur().length - 1); }
+  else render();
 }
 
 function onYouTubeIframeAPIReady() {
@@ -235,10 +344,16 @@ function onYouTubeIframeAPIReady() {
         if (e.data === 1) errs = 0;
         if (e.data === 0) nextTrack(true);
       },
-      onError: () => {
+      onError: async () => {
+        const l = pList(), at = idx, t = l[at]; if (!t) return;
+        t.bad = true; save(); render();
+        if (getKey() && (t.tried || [t.id]).length < 3) {
+          toast("Can't play that one here. Looking for another version...", true);
+          if (await findAlt(l, at)) { toast("Found another version."); if (idx === at) play(at); return; }
+        }
         errs++;
-        if (errs < pList().length) { $("msg").textContent = "That video can't be played. Skipping..."; nextTrack(true); }
-        else $("msg").textContent = "None of these videos can be played here.";
+        if (errs < l.length) { toast("Skipping a song that can't play here."); nextTrack(true); }
+        else toast("None of these songs can be played here.");
       }
     }
   });
@@ -264,18 +379,18 @@ seek.onchange = () => { seeking = false; if (ready) yt.seekTo(+seek.value, true)
 $("vol").value = vol;
 $("vol").oninput = e => { vol = +e.target.value; if (ready) yt.setVolume(vol); };
 $("vol").onchange = e => { e.target.blur(); saveState(); };
-
 $("pp").onclick = toggle;
 $("prev").onclick = prevTrack;
 $("next").onclick = () => nextTrack();
 $("shuffle").onclick = () => { shuffle = !shuffle; $("shuffle").textContent = "Shuffle: " + (shuffle ? "on" : "off"); saveState(); };
 $("repeat").onclick = () => { repeat = { off: "all", all: "one", one: "off" }[repeat]; $("repeat").textContent = "Repeat: " + repeat; saveState(); };
+$("hideBtn").onclick = () => { hideV = !hideV; render(); saveState(); };
 $("shuffle").textContent = "Shuffle: " + (shuffle ? "on" : "off");
 $("repeat").textContent = "Repeat: " + repeat;
 
 document.addEventListener("keydown", e => {
   const t = e.target.tagName;
-  if (/INPUT|TEXTAREA|SELECT/.test(t) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA/.test(t) || e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open]")) return;
   if (t === "BUTTON" && e.key === " ") return;
   const k = e.key.toLowerCase();
   if (k === " ") { e.preventDefault(); toggle(); }
@@ -291,31 +406,31 @@ document.addEventListener("keydown", e => {
 /* ---------- search ---------- */
 async function doSearch() {
   const q = $("q").value.trim(); if (!q) return;
-  $("msg").textContent = "Searching...";
   const box = $("results"); box.innerHTML = "";
+  if (/youtu/.test(q)) {
+    const id = parseId(q); if (!id) { toast("Couldn't read that link."); return; }
+    toast("Adding...", true); addTrack({ id, title: await getTitle(id) });
+    $("q").value = ""; toast("Added to “" + data.current + "”."); return;
+  }
+  toast("Searching...", true);
   try {
     const res = await ytSearch(q, 8);
-    $("msg").textContent = res.length ? "" : "No results.";
+    toast(res.length ? "" : "No results found.");
+    if (!res.length) return;
+    const head = el("div", "row"); head.append(el("span", "muted", "Tap + to add to “" + data.current + "”"));
+    const clr = el("button", "link", "Clear results"); clr.onclick = () => { box.innerHTML = ""; }; head.append(clr); box.append(head);
     res.forEach(t => {
-      const d = document.createElement("div"); d.className = "track";
-      const s = document.createElement("span"); s.textContent = t.title + " · " + t.channel;
-      const b = document.createElement("button"); b.textContent = "+ Add";
-      b.onclick = () => { addTrack(t); b.textContent = "Added"; b.disabled = true; };
-      d.append(s, b); box.append(d);
+      const d = el("div", "track"), s = el("span", "", t.title + " · " + t.channel);
+      const pl = el("button", "ghost", "▶"); pl.title = "Add and play now";
+      pl.onclick = () => { addTrack(t, true); pl.disabled = add.disabled = true; add.textContent = "✓"; };
+      const add = el("button", "", "+ Add");
+      add.onclick = () => { addTrack(t); add.textContent = "✓ Added"; add.disabled = true; };
+      d.append(s, pl, add); box.append(d);
     });
-  } catch (e) { $("msg").textContent = e.message; }
+  } catch (e) { toast(e.message); }
 }
 $("go").onclick = doSearch;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
-
-$("add").onclick = async () => {
-  const id = parseId($("url").value);
-  if (!id) { $("msg").textContent = "Couldn't read that link."; return; }
-  $("msg").textContent = "Adding...";
-  addTrack({ id, title: await getTitle(id) });
-  $("url").value = ""; $("msg").textContent = "";
-};
-$("url").addEventListener("keydown", e => { if (e.key === "Enter") $("add").click(); });
 
 /* ---------- import / export ---------- */
 function rowsOf(t, d) {
@@ -340,37 +455,39 @@ function toQueries(t) {
     const rows = rowsOf(t, d), h = rows[0].map(x => x.toLowerCase());
     const ti = h.findIndex(x => /track name|title|song|^name$/.test(x));
     const ai = h.findIndex(x => /artist/.test(x));
-    if (ti > -1) return rows.slice(1).filter(r => r[ti])
-      .map(r => (r[ti] + " " + (ai > -1 ? (r[ai] || "").split(/[;,]/)[0] : "")).trim());
+    if (ti > -1) return rows.slice(1).filter(r => r[ti]).map(r => (r[ti] + " " + (ai > -1 ? (r[ai] || "").split(/[;,]/)[0] : "")).trim());
   }
   return t.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 }
 
 async function runImport(text) {
   text = (text || "").trim(); if (!text) return;
+  $("set").close();
   let j = null; try { j = JSON.parse(text); } catch (e) {}
   if (j && j.lists) {
     for (const n in j.lists) {
       const t = data.lists[n] = data.lists[n] || [];
       (j.lists[n] || []).forEach(x => { if (x && x.id && !t.some(y => y.id === x.id)) t.push({ id: x.id, title: x.title || x.id }); });
     }
-    save(); render(); $("msg").textContent = "Playlists imported."; return;
+    save(); render(); toast("Playlists imported."); return;
   }
   const qs = toQueries(text); if (!qs.length) return;
-  const name = (prompt("Name for the new playlist?", "Imported") || "").trim(); if (!name) return;
+  const name = await ask("Name for the new playlist", "Imported"); if (!name) return;
   data.lists[name] = data.lists[name] || []; data.current = name;
   let ok = 0, miss = 0, err = "";
   for (let i = 0; i < qs.length; i++) {
-    $("msg").textContent = "Importing " + (i + 1) + "/" + qs.length + "...";
+    toast("Importing " + (i + 1) + " of " + qs.length + "...", true);
     try {
-      const r = await ytSearch(qs[i], 1);
-      if (r[0]) { data.lists[name].push({ id: r[0].id, title: r[0].title }); ok++; } else miss++;
+      const r = best(await ytSearch(qs[i], 5));
+      if (r) { data.lists[name].push({ id: r.id, title: r.title }); ok++; } else miss++;
     } catch (e) { err = e.message; break; }
   }
   save(); render();
-  $("msg").textContent = "Added " + ok + (miss ? ", " + miss + " not found" : "") + (err ? ". Stopped: " + err : ".");
+  toast("Added " + ok + (miss ? ", " + miss + " not found" : "") + (err ? ". Stopped: " + err : "."));
 }
 
+$("setBtn").onclick = () => $("set").showModal();
+$("impBtn").onclick = () => $("set").showModal();
 $("doImport").onclick = () => runImport($("paste").value);
 $("fileBtn").onclick = () => $("file").click();
 $("file").onchange = async e => { const f = e.target.files[0]; if (f) runImport(await f.text()); e.target.value = ""; };
@@ -379,25 +496,38 @@ $("export").onclick = () => {
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
   a.download = "playlists.json"; a.click();
 };
-$("setKey").onclick = () => {
-  const k = prompt("Paste your YouTube Data API key:", getKey());
-  if (k !== null) { try { localStorage.setItem("ytkey", k.trim()); } catch (e) {} render(); }
-};
+async function setKey() {
+  const k = await ask("Paste your YouTube Data API key", getKey());
+  if (k !== null) { try { localStorage.setItem("ytkey", k); } catch (e) {} render(); toast("Key saved."); }
+}
+$("setKey").onclick = () => { $("set").close(); setKey(); };
+$("keyBtn").onclick = setKey;
 
 /* ---------- playlists ---------- */
-$("plSelect").onchange = e => { data.current = e.target.value; save(); render(); };
-$("newPl").onclick = () => {
-  const n = (prompt("Playlist name?") || "").trim();
-  if (n && !data.lists[n]) { data.lists[n] = []; data.current = n; save(); render(); }
-};
-$("delPl").onclick = () => {
-  if (Object.keys(data.lists).length < 2) return;
-  if (!confirm("Delete this playlist?")) return;
+async function newList() {
+  const n = await ask("Name your new playlist", "");
+  if (!n) return;
+  if (data.lists[n]) { toast("You already have a playlist with that name."); return; }
+  data.lists[n] = []; data.current = n; save(); render();
+}
+async function renameList() {
+  const n = await ask("Rename playlist", data.current);
+  if (!n || n === data.current) return;
+  if (data.lists[n]) { toast("You already have a playlist with that name."); return; }
+  const nl = {}; for (const k in data.lists) nl[k === data.current ? n : k] = data.lists[k];
+  if (pName === data.current) pName = n;
+  data.lists = nl; data.current = n; save(); render();
+}
+async function delList() {
+  if (Object.keys(data.lists).length < 2) { toast("You need at least one playlist."); return; }
+  if (!await ask("Delete “" + data.current + "”?", null, { input: false, ok: "Delete" })) return;
   if (data.current === pName) { idx = -1; if (ready) yt.stopVideo(); }
   delete data.lists[data.current]; data.current = Object.keys(data.lists)[0];
   if (!data.lists[pName]) pName = data.current;
   save(); render();
-};
+}
+$("renBtn").onclick = renameList;
+$("delBtn").onclick = delList;
 render();
 </script>
 </body>
